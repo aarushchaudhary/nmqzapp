@@ -56,3 +56,79 @@ exports.submitExam = async (req, res) => {
         res.status(500).json({ message: 'Error submitting exam', error: error.message });
     }
 };
+
+// Get all evaluated attempts for the logged-in student
+exports.getStudentResults = async (req, res) => {
+    try {
+        const studentId = req.user.id;
+
+        const attempts = await QuizAttempt.find({
+            studentId,
+            status: { $in: ['Submitted', 'Evaluated'] }
+        })
+            .populate('quizId', 'title totalMarks duration')
+            .sort({ submittedAt: -1 });
+
+        res.json(attempts);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching results', error: error.message });
+    }
+};
+
+// Get detailed result for a specific attempt
+exports.getResultDetail = async (req, res) => {
+    try {
+        const { attemptId } = req.params;
+        const studentId = req.user.id;
+
+        const attempt = await QuizAttempt.findById(attemptId).populate('quizId');
+
+        if (!attempt) {
+            return res.status(404).json({ message: 'Attempt not found' });
+        }
+
+        // Verify ownership: ensure the attempt belongs to the student
+        if (attempt.studentId.toString() !== studentId.toString()) {
+            return res.status(403).json({ message: 'Unauthorized: This attempt does not belong to you' });
+        }
+
+        // Get the quiz with full questions to compare answers
+        const quiz = await Quiz.findById(attempt.quizId);
+        if (!quiz) {
+            return res.status(404).json({ message: 'Quiz not found' });
+        }
+
+        // Build detailed response
+        const detailedAttempt = {
+            _id: attempt._id,
+            quizTitle: quiz.title,
+            totalMarks: quiz.totalMarks,
+            totalScore: attempt.totalScore,
+            status: attempt.status,
+            submittedAt: attempt.submittedAt,
+            questions: quiz.questions.map((question) => {
+                const answer = attempt.answers.find(a => a.questionId.toString() === question._id.toString());
+                return {
+                    questionId: question._id,
+                    questionText: question.text,
+                    type: question.type,
+                    marks: question.marks,
+                    submittedAnswer: answer?.submittedAnswer || '',
+                    correctAnswer: question.type === 'MCQ' ? question.correctAnswer : null,
+                    isCorrect: answer?.isCorrect || false,
+                    marksAwarded: answer?.marksAwarded || 0,
+                    options: question.type === 'MCQ' ? question.options : []
+                };
+            })
+        };
+
+        // Calculate percentage
+        const percentage = quiz.totalMarks > 0 
+            ? Math.round((attempt.totalScore / quiz.totalMarks) * 100) 
+            : 0;
+
+        res.json({ ...detailedAttempt, percentage });
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching result detail', error: error.message });
+    }
+};

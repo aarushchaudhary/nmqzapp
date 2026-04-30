@@ -6,7 +6,28 @@ exports.login = async (req, res) => {
     try {
         const { username, password } = req.body;
 
-        // Find user
+        // 1. Check for Hardcoded Admin (from .env)
+        if (
+            username === process.env.ADMIN_USERNAME && 
+            password === process.env.ADMIN_PASSWORD
+        ) {
+            // Create JWT Payload for Admin
+            const adminPayload = {
+                id: 'admin_id_env', // A dummy ID since they aren't in the DB
+                role: 'Admin',
+                name: 'System Admin'
+            };
+
+            const adminToken = jwt.sign(adminPayload, process.env.JWT_SECRET, { expiresIn: '8h' });
+
+            return res.json({
+                message: 'Admin Login successful',
+                token: adminToken,
+                user: adminPayload
+            });
+        }
+
+        // 2. If not the admin, check the database for other users (Faculty/Student)
         const user = await User.findOne({ username, isActive: true });
         if (!user) {
             return res.status(401).json({ message: 'Invalid credentials' });
@@ -18,15 +39,14 @@ exports.login = async (req, res) => {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        // Create JWT Payload
+        // Create JWT Payload for DB User
         const payload = {
             id: user._id,
             role: user.role,
             name: user.name
         };
 
-        // Sign Token (Expires in 8 hours, suitable for exam duration)
-        const token = jwt.sign(payload, process.env.JWT_SECRET || 'fallback_secret', { expiresIn: '8h' });
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '8h' });
 
         res.json({
             message: 'Login successful',

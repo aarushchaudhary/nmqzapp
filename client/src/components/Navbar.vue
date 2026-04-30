@@ -1,7 +1,10 @@
 <template>
   <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm" v-if="user">
-    <div class="container">
-      <span class="navbar-brand fw-bold">NM Quiz App</span>
+    <div class="container-fluid">
+      <router-link class="navbar-brand fw-bold" to="/admin/dashboard" v-if="user.role === 'Admin'">NM Quiz App</router-link>
+      <router-link class="navbar-brand fw-bold" to="/faculty/dashboard" v-else-if="user.role === 'Faculty'">NM Quiz App</router-link>
+      <router-link class="navbar-brand fw-bold" to="/student/dashboard" v-else>NM Quiz App</router-link>
+      
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
         <span class="navbar-toggler-icon"></span>
       </button>
@@ -11,6 +14,15 @@
           <!-- Admin Links -->
           <li class="nav-item" v-if="user.role === 'Admin'">
             <router-link class="nav-link" to="/admin/dashboard">Dashboard</router-link>
+          </li>
+          <li class="nav-item" v-if="user.role === 'Admin'">
+            <router-link class="nav-link" to="/admin/academic-structure">Academic Structure</router-link>
+          </li>
+          <li class="nav-item" v-if="user.role === 'Admin'">
+            <router-link class="nav-link" to="/admin/users">Users</router-link>
+          </li>
+          <li class="nav-item" v-if="user.role === 'Admin'">
+            <router-link class="nav-link" to="/admin/logs">System Logs</router-link>
           </li>
           
           <!-- Faculty Links -->
@@ -26,6 +38,9 @@
           <!-- Student Links -->
           <li class="nav-item" v-if="user.role === 'Student'">
             <router-link class="nav-link" to="/student/dashboard">Available Exams</router-link>
+          </li>
+          <li class="nav-item" v-if="user.role === 'Student'">
+            <router-link class="nav-link" to="/student/results">My Results</router-link>
           </li>
         </ul>
 

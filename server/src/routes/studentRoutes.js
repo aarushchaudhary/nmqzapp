@@ -2,14 +2,15 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middlewares/authMiddleware');
 const { getAvailableQuizzes, getQuizById } = require('../controllers/quizController');
-const { submitExam } = require('../controllers/attemptController');
+const { submitExam, getStudentResults, getResultDetail } = require('../controllers/attemptController');
 
-// Add this below your existing quiz routes
-router.post('/submit-exam', submitExam);
-router.use(protect);
-router.use(authorize('Student'));
+// Public routes (no auth required)
+router.get('/quizzes', protect, authorize('Student'), getAvailableQuizzes);
+router.get('/quiz/:id', protect, authorize('Student'), getQuizById);
+router.post('/submit-exam', protect, authorize('Student'), submitExam);
 
-router.get('/quizzes', getAvailableQuizzes);
-router.get('/quiz/:id', getQuizById);
+// Results routes
+router.get('/results', protect, authorize('Student'), getStudentResults);
+router.get('/results/:attemptId', protect, authorize('Student'), getResultDetail);
 
 module.exports = router;

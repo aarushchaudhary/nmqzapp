@@ -27,8 +27,8 @@ require('./src/sockets/socketHandler')(io);
 // Mount Routes (from Phase 3)
 app.use('/api/auth', require('./src/routes/authRoutes'));
 app.use('/api/admin', require('./src/routes/adminRoutes'));
-app.use('/api/faculty', require('./routes/facultyRoutes'));
-app.use('/api/student', require('./routes/studentRoutes'));
+app.use('/api/faculty', require('./src/routes/facultyRoutes'));
+app.use('/api/student', require('./src/routes/studentRoutes'));
 
 const PORT = process.env.PORT || 5000;
 // Make sure to use server.listen(), NOT app.listen()
