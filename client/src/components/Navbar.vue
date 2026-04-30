@@ -3,7 +3,8 @@
     <div class="container-fluid">
       <router-link class="navbar-brand fw-bold" to="/admin/dashboard" v-if="user.role === 'Admin'">NM Quiz App</router-link>
       <router-link class="navbar-brand fw-bold" to="/faculty/dashboard" v-else-if="user.role === 'Faculty'">NM Quiz App</router-link>
-      <router-link class="navbar-brand fw-bold" to="/student/dashboard" v-else>NM Quiz App</router-link>
+      <router-link class="navbar-brand fw-bold" to="/student/dashboard" v-else-if="user.role === 'Student'">NM Quiz App</router-link>
+      <router-link class="navbar-brand fw-bold" to="/placecom/dashboard" v-else-if="user.role === 'Placecom'">NM Quiz App</router-link>
       
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
         <span class="navbar-toggler-icon"></span>
@@ -41,6 +42,11 @@
           </li>
           <li class="nav-item" v-if="user.role === 'Student'">
             <router-link class="nav-link" to="/student/results">My Results</router-link>
+          </li>
+
+          <!-- Placecom Links -->
+          <li class="nav-item" v-if="user.role === 'Placecom'">
+            <router-link class="nav-link" to="/placecom/dashboard">All Results</router-link>
           </li>
         </ul>
 

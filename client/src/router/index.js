@@ -35,6 +35,12 @@ const routes = [
         component: () => import('../views/faculty/EvaluateAnswers.vue'),
         meta: { requiresAuth: true, requiredRole: 'Faculty' }
     },
+    { 
+        path: '/faculty/analysis/:id', 
+        name: 'ItemAnalysis', 
+        component: () => import('../views/faculty/ItemAnalysis.vue'),
+        meta: { requiresAuth: true, requiredRole: 'Faculty' }
+    },
     
     // Student Routes
     { 
@@ -86,6 +92,14 @@ const routes = [
         name: 'SystemLogs', 
         component: () => import('../views/admin/SystemLogs.vue'),
         meta: { requiresAuth: true, requiredRole: 'Admin' }
+    },
+    
+    // Placecom Routes
+    { 
+        path: '/placecom/dashboard', 
+        name: 'PlacecomDashboard', 
+        component: () => import('../views/placecom/PlacecomDashboard.vue'),
+        meta: { requiresAuth: true, requiredRole: 'Placecom' }
     }
 ];
 

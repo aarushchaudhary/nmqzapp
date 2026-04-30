@@ -67,6 +67,21 @@
                 <small class="text-muted">Status: {{ selectedAttempt.status }}</small>
               </div>
             </div>
+
+            <!-- Disqualification Warning -->
+            <div v-if="selectedAttempt.disqualified" class="alert alert-warning mt-3 mb-0 d-flex justify-content-between align-items-center">
+              <div>
+                <strong>⚠️ This student is DISQUALIFIED</strong>
+                <p class="mb-0 small mt-1">Reason: {{ selectedAttempt.disqualificationReason || 'No reason provided' }}</p>
+              </div>
+              <button 
+                class="btn btn-sm btn-warning"
+                @click="reenableStudent"
+                :disabled="isReenabling"
+              >
+                {{ isReenabling ? 'Re-enabling...' : '🔄 Re-enable' }}
+              </button>
+            </div>
           </div>
 
           <!-- Questions & Answers -->
@@ -162,6 +177,7 @@ const selectedAttempt = ref(null);
 const grades = ref({});
 const loading = ref(true);
 const isSaving = ref(false);
+const isReenabling = ref(false);
 
 // Computed
 const questionMap = computed(() => {
@@ -249,7 +265,7 @@ const submitEvaluation = async () => {
     grades.value = {};
   } catch (error) {
     console.error('Error saving grades:', error);
-    alert('Failed to save grades');
+    alert(error.response?.data?.message || 'Failed to save grades');
   } finally {
     isSaving.value = false;
   }
@@ -257,6 +273,35 @@ const submitEvaluation = async () => {
 
 const goBack = () => {
   router.push('/faculty/dashboard');
+};
+
+const reenableStudent = async () => {
+  if (!selectedAttempt.value) return;
+  
+  if (!confirm('Are you sure you want to re-enable this student? They will be considered qualified again.')) {
+    return;
+  }
+  
+  isReenabling.value = true;
+  try {
+    const token = localStorage.getItem('token');
+    await axios.put(
+      `http://localhost:5000/api/faculty/attempt/${selectedAttempt.value._id}/reenable`,
+      {},
+      {
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    );
+
+    alert('Student has been re-enabled successfully!');
+    selectedAttempt.value.disqualified = false;
+    selectedAttempt.value.disqualificationReason = null;
+  } catch (error) {
+    console.error('Error re-enabling student:', error);
+    alert(error.response?.data?.message || 'Failed to re-enable student');
+  } finally {
+    isReenabling.value = false;
+  }
 };
 
 onMounted(() => {

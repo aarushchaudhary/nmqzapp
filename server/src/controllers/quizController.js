@@ -343,3 +343,210 @@ exports.exportResultsAsCSV = async (req, res) => {
         res.status(500).json({ message: 'Error exporting results', error: error.message });
     }
 };
+
+// --- FACULTY: Bulk Upload Questions from CSV ---
+exports.bulkUploadQuestions = async (req, res) => {
+    try {
+        const { id: quizId } = req.params;
+        
+        if (!req.file) {
+            return res.status(400).json({ message: 'No file provided' });
+        }
+        
+        // Find quiz
+        const quiz = await Quiz.findById(quizId);
+        if (!quiz) return res.status(404).json({ message: 'Quiz not found' });
+        
+        // Verify ownership
+        if (quiz.facultyId.toString() !== req.user.id) {
+            return res.status(403).json({ message: 'Not authorized to edit this quiz' });
+        }
+        
+        // Parse CSV file
+        const csv = require('csv-parser');
+        const { Readable } = require('stream');
+        
+        const questions = [];
+        const buffer = req.file.buffer.toString('utf-8');
+        
+        await new Promise((resolve, reject) => {
+            Readable.from([buffer])
+                .pipe(csv())
+                .on('data', (row) => {
+                    // Expected CSV columns: questionText, type, options, correctAnswer, marks
+                    const question = {
+                        questionText: row.questionText || row['Question Text'] || '',
+                        type: row.type || row['Type'] || 'MCQ',
+                        options: row.options ? row.options.split('|') : [], // Pipe-separated options
+                        correctAnswer: row.correctAnswer || row['Correct Answer'] || '',
+                        marks: parseInt(row.marks || row['Marks'] || 1)
+                    };
+                    
+                    if (question.questionText) {
+                        questions.push(question);
+                    }
+                })
+                .on('end', resolve)
+                .on('error', reject);
+        });
+        
+        if (questions.length === 0) {
+            return res.status(400).json({ message: 'No valid questions found in the file' });
+        }
+        
+        // Append questions to quiz
+        quiz.questions.push(...questions);
+        await quiz.save();
+        
+        res.json({
+            message: `Successfully added ${questions.length} question(s) to the quiz`,
+            questionsAdded: questions.length,
+            totalQuestions: quiz.questions.length
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error uploading questions', error: error.message });
+    }
+};
+
+// --- FACULTY: Get Quiz Item Analysis ---
+exports.getQuizAnalysis = async (req, res) => {
+    try {
+        const { id: quizId } = req.params;
+        
+        // Find quiz
+        const quiz = await Quiz.findById(quizId);
+        if (!quiz) return res.status(404).json({ message: 'Quiz not found' });
+        
+        // Verify ownership
+        if (quiz.facultyId.toString() !== req.user.id) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+        
+        // Fetch all attempts for this quiz
+        const attempts = await QuizAttempt.find({ quizId }).lean();
+        
+        // Build analysis per question
+        const analysis = quiz.questions.map((question, idx) => {
+            let totalAttempts = 0;
+            let correctCount = 0;
+            let incorrectCount = 0;
+            let unansweredCount = 0;
+            
+            attempts.forEach(attempt => {
+                const answer = attempt.answers[idx];
+                if (!answer) return;
+                
+                totalAttempts++;
+                
+                if (!answer.submittedAnswer) {
+                    unansweredCount++;
+                } else if (answer.isCorrect === true) {
+                    correctCount++;
+                } else {
+                    incorrectCount++;
+                }
+            });
+            
+            return {
+                questionNumber: idx + 1,
+                questionText: question.questionText.substring(0, 100) + '...', // Truncate for display
+                type: question.type,
+                totalAttempts,
+                correctCount,
+                incorrectCount,
+                unansweredCount,
+                correctPercentage: totalAttempts > 0 ? ((correctCount / totalAttempts) * 100).toFixed(2) : 0,
+                marks: question.marks
+            };
+        });
+        
+        res.json({
+            quiz: {
+                _id: quiz._id,
+                title: quiz.title,
+                totalQuestions: quiz.questions.length,
+                totalAttempts: attempts.length
+            },
+            analysis
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching analysis', error: error.message });
+    }
+};
+
+// --- FACULTY: Re-enable Student Attempt ---
+exports.reenableStudent = async (req, res) => {
+    try {
+        const { attemptId } = req.params;
+        
+        // Find attempt
+        const attempt = await QuizAttempt.findById(attemptId).populate('quizId');
+        if (!attempt) return res.status(404).json({ message: 'Attempt not found' });
+        
+        // Verify that the quiz belongs to the requesting faculty
+        if (attempt.quizId.facultyId.toString() !== req.user.id) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+        
+        // Re-enable the student
+        attempt.disqualified = false;
+        attempt.disqualificationReason = null;
+        await attempt.save();
+        
+        res.json({
+            message: 'Student has been re-enabled',
+            attempt: {
+                _id: attempt._id,
+                disqualified: attempt.disqualified
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error re-enabling student', error: error.message });
+    }
+};
+
+// --- PLACECOM: Get All Evaluated Results Across System ---
+exports.getPlacecomResults = async (req, res) => {
+    try {
+        // Fetch all evaluated attempts, populating student, quiz, course, school, and specialization details
+        const attempts = await QuizAttempt.find({ status: 'Evaluated' })
+            .populate({
+                path: 'studentId',
+                select: 'name username email course specialization school',
+                populate: [
+                    { path: 'course', select: 'name' },
+                    { path: 'specialization', select: 'name' },
+                    { path: 'school', select: 'name' }
+                ]
+            })
+            .populate({
+                path: 'quizId',
+                select: 'title description startTime endTime durationMinutes'
+            })
+            .lean();
+        
+        // Format results for display
+        const results = attempts.map(attempt => ({
+            _id: attempt._id,
+            studentName: attempt.studentId.name,
+            studentUsername: attempt.studentId.username,
+            studentEmail: attempt.studentId.email,
+            course: attempt.studentId.course?.name || 'N/A',
+            specialization: attempt.studentId.specialization?.name || 'N/A',
+            school: attempt.studentId.school?.name || 'N/A',
+            quizTitle: attempt.quizId.title,
+            quizDescription: attempt.quizId.description,
+            totalScore: attempt.totalScore,
+            submittedAt: attempt.submittedAt,
+            disqualified: attempt.disqualified,
+            disqualificationReason: attempt.disqualificationReason || 'N/A'
+        }));
+        
+        res.json({
+            totalResults: results.length,
+            results
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching results', error: error.message });
+    }
+};

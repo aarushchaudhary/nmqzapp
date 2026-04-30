@@ -63,6 +63,9 @@
               <button class="btn btn-sm btn-outline-info flex-grow-1" @click="viewResults(quiz._id)">
                 📊 Evaluate
               </button>
+              <button class="btn btn-sm btn-outline-secondary flex-grow-1" @click="viewAnalysis(quiz._id)">
+                📈 Analysis
+              </button>
               <button class="btn btn-sm btn-outline-warning flex-grow-1" @click="exportResults(quiz._id)">
                 ⬇️ Export
               </button>
@@ -121,6 +124,10 @@ const monitorQuiz = (quizId) => {
 
 const viewResults = (quizId) => {
   router.push(`/faculty/evaluate/${quizId}`);
+};
+
+const viewAnalysis = (quizId) => {
+  router.push(`/faculty/analysis/${quizId}`);
 };
 
 const exportResults = async (quizId) => {

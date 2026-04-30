@@ -29,6 +29,7 @@ app.use('/api/auth', require('./src/routes/authRoutes'));
 app.use('/api/admin', require('./src/routes/adminRoutes'));
 app.use('/api/faculty', require('./src/routes/facultyRoutes'));
 app.use('/api/student', require('./src/routes/studentRoutes'));
+app.use('/api/placecom', require('./src/routes/placecomRoutes'));
 
 const PORT = process.env.PORT || 5000;
 // Make sure to use server.listen(), NOT app.listen()

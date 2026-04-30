@@ -76,7 +76,10 @@
         <div class="card shadow mb-4">
           <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <span class="fw-bold">Questions ({{ form.questions.length }})</span>
-            <button class="btn btn-sm btn-light" @click="addQuestion">+ Add Question</button>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-light" @click="openBulkUploadModal">📤 Bulk Upload</button>
+              <button class="btn btn-sm btn-light" @click="addQuestion">+ Add Question</button>
+            </div>
           </div>
           <div class="card-body">
             <div v-for="(question, idx) in form.questions" :key="idx" class="mb-4 p-3 border rounded bg-light">
@@ -175,8 +178,64 @@
         </div>
       </div>
     </div>
-  </div>
-</template>
+
+    <!-- Bulk Upload Modal -->
+    <div v-if="showBulkUploadModal" class="modal d-block" style="background-color: rgba(0, 0, 0, 0.5);">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title fw-bold">Bulk Upload Questions</h5>
+            <button type="button" class="btn-close btn-close-white" @click="closeBulkUploadModal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <h6 class="fw-bold">CSV/Excel Format Instructions:</h6>
+              <p class="text-muted small mb-2">Your file should contain the following columns:</p>
+              <ul class="text-muted small">
+                <li><strong>questionText</strong> - The question text (required)</li>
+                <li><strong>type</strong> - MCQ or Descriptive (default: MCQ)</li>
+                <li><strong>options</strong> - Options separated by pipe symbol | (for MCQ only)</li>
+                <li><strong>correctAnswer</strong> - The correct answer (for MCQ)</li>
+                <li><strong>marks</strong> - Marks for this question (default: 1)</li>
+              </ul>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">Upload File</label>
+              <input 
+                type="file" 
+                ref="bulkUploadFileInput"
+                class="form-control" 
+                accept=".csv,.xlsx,.xls"
+                @change="selectFile"
+              >
+              <small class="text-muted">Supported formats: CSV, Excel (.xlsx, .xls)</small>
+            </div>
+
+            <div v-if="bulkUploadError" class="alert alert-danger mb-3">
+              {{ bulkUploadError }}
+            </div>
+
+            <div v-if="bulkUploadSuccess" class="alert alert-success mb-3">
+              ✓ {{ bulkUploadSuccess }}
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" @click="closeBulkUploadModal">
+              Close
+            </button>
+            <button 
+              type="button" 
+              class="btn btn-primary" 
+              @click="uploadQuestions"
+              :disabled="!selectedFile || isUploading"
+            >
+              {{ isUploading ? 'Uploading...' : '📤 Upload' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
@@ -201,6 +260,13 @@ const form = ref({
   questions: []
 });
 const attemptCount = ref(0);
+
+// Bulk upload state
+const showBulkUploadModal = ref(false);
+const selectedFile = ref(null);
+const isUploading = ref(false);
+const bulkUploadError = ref('');
+const bulkUploadSuccess = ref('');
 
 // Computed
 const cannotChangeStatus = computed(() => attemptCount.value > 0 && form.value.status !== 'Draft');
@@ -341,6 +407,65 @@ const deleteQuiz = async () => {
 
 const goBack = () => {
   router.push('/faculty/dashboard');
+};
+
+const openBulkUploadModal = () => {
+  showBulkUploadModal.value = true;
+  bulkUploadError.value = '';
+  bulkUploadSuccess.value = '';
+  selectedFile.value = null;
+};
+
+const closeBulkUploadModal = () => {
+  showBulkUploadModal.value = false;
+  selectedFile.value = null;
+  bulkUploadError.value = '';
+  bulkUploadSuccess.value = '';
+};
+
+const selectFile = (event) => {
+  selectedFile.value = event.target.files[0];
+};
+
+const uploadQuestions = async () => {
+  if (!selectedFile.value) {
+    bulkUploadError.value = 'Please select a file';
+    return;
+  }
+
+  isUploading.value = true;
+  bulkUploadError.value = '';
+  bulkUploadSuccess.value = '';
+
+  try {
+    const formData = new FormData();
+    formData.append('file', selectedFile.value);
+
+    const token = localStorage.getItem('token');
+    const response = await axios.post(
+      `http://localhost:5000/api/faculty/quiz/${quizId.value}/upload-questions`,
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    );
+
+    bulkUploadSuccess.value = `Successfully added ${response.data.questionsAdded} question(s)!`;
+    
+    // Refresh the quiz data
+    setTimeout(async () => {
+      await fetchQuiz();
+      closeBulkUploadModal();
+    }, 1500);
+  } catch (error) {
+    bulkUploadError.value = error.response?.data?.message || 'Error uploading questions';
+    console.error('Error:', error);
+  } finally {
+    isUploading.value = false;
+  }
 };
 
 onMounted(() => {

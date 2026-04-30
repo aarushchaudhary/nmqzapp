@@ -258,6 +258,7 @@ const filteredUsers = computed(() => {
 // Methods
 const fetchUsers = async () => {
   try {
+    loading.value = true;
     const token = localStorage.getItem('token');
     const response = await axios.get('http://localhost:5000/api/admin/users', {
       headers: { Authorization: `Bearer ${token}` }
@@ -320,12 +321,32 @@ const openEditUserModal = (user) => {
 };
 
 const closeUserModal = () => {
-  if (userModal) userModal.hide();
+  if (userModal) {
+    userModal.hide();
+    // Clear form after modal is hidden
+    setTimeout(() => {
+      editingUserId.value = null;
+      userForm.value = {
+        username: '',
+        password: '',
+        name: '',
+        role: '',
+        school: '',
+        course: '',
+        specialization: '',
+        isActive: true
+      };
+    }, 300);
+  }
 };
 
 const saveUser = async () => {
   if (!userForm.value.username.trim() || !userForm.value.name.trim()) {
     alert('Username and name are required');
+    return;
+  }
+  if (!userForm.value.role) {
+    alert('Role is required');
     return;
   }
   if (!editingUserId.value && !userForm.value.password) {
@@ -339,23 +360,30 @@ const saveUser = async () => {
     const payload = { ...userForm.value };
 
     if (editingUserId.value) {
+      // For updates, only include password if provided
       if (!payload.password) delete payload.password;
       await axios.put(
         `http://localhost:5000/api/admin/users/${editingUserId.value}`,
         payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      alert('User updated successfully!');
     } else {
       await axios.post(
         'http://localhost:5000/api/admin/users',
         payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      alert('User created successfully!');
     }
 
-    closeUserModal();
-    fetchUsers();
-    alert('User saved successfully!');
+    // Hide modal using Bootstrap 5 API
+    if (userModal) {
+      userModal.hide();
+    }
+
+    // Refresh user list
+    await fetchUsers();
   } catch (error) {
     console.error('Error saving user:', error);
     alert(error.response?.data?.message || 'Failed to save user');
@@ -365,7 +393,7 @@ const saveUser = async () => {
 };
 
 const deleteUser = async (id) => {
-  if (!confirm('Are you sure you want to delete this user?')) return;
+  if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
 
   try {
     const token = localStorage.getItem('token');
@@ -373,8 +401,8 @@ const deleteUser = async (id) => {
       `http://localhost:5000/api/admin/users/${id}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
-    fetchUsers();
     alert('User deleted successfully!');
+    await fetchUsers();
   } catch (error) {
     console.error('Error deleting user:', error);
     alert(error.response?.data?.message || 'Failed to delete user');
@@ -389,7 +417,17 @@ const openBulkUploadModal = () => {
 };
 
 const closeBulkUploadModal = () => {
-  if (bulkUploadModal) bulkUploadModal.hide();
+  if (bulkUploadModal) {
+    bulkUploadModal.hide();
+    // Clear upload state after modal is hidden
+    setTimeout(() => {
+      uploadResult.value = null;
+      selectedFile.value = null;
+      if (csvFileInput.value) {
+        csvFileInput.value.value = '';
+      }
+    }, 300);
+  }
 };
 
 const onFileSelected = (event) => {
@@ -420,11 +458,19 @@ const uploadCSV = async () => {
     );
 
     uploadResult.value = response.data;
-    fetchUsers();
+    alert(`Upload complete!\nCreated: ${response.data.created}\nFailed: ${response.data.failed}`);
+
+    // Refresh user list
+    await fetchUsers();
+
+    // Hide modal using Bootstrap 5 API
     setTimeout(() => {
-      closeBulkUploadModal();
-      alert(`Upload complete! Created: ${response.data.created}, Failed: ${response.data.failed}`);
-    }, 1000);
+      if (bulkUploadModal) {
+        bulkUploadModal.hide();
+      }
+      selectedFile.value = null;
+      csvFileInput.value.value = '';
+    }, 500);
   } catch (error) {
     console.error('Error uploading CSV:', error);
     alert(error.response?.data?.message || 'Failed to upload CSV');
